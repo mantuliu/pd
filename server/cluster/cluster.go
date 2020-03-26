@@ -542,7 +542,7 @@ func (c *RaftCluster) processRegionHeartbeat(region *core.RegionInfo) error {
 			return err
 		}
 		c.RUnlock()
-		//c.core.PutRegion(region)
+		c.core.PutRegion(region)
 
 		//overlaps := c.core.PutRegion(region)
 		/*
