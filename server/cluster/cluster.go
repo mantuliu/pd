@@ -105,6 +105,10 @@ type RaftCluster struct {
 
 	schedulersCallback func()
 	configCheck        bool
+	Ch1                chan *core.RegionInfo
+	Ch2                chan *core.RegionInfo
+	Ch3                chan *core.RegionInfo
+	Ch4                chan *core.RegionInfo
 }
 
 // Status saves some state information.
@@ -122,6 +126,10 @@ func NewRaftCluster(ctx context.Context, root string, clusterID uint64, regionSy
 		clusterRoot:  root,
 		regionSyncer: regionSyncer,
 		client:       client,
+		Ch1:          make(chan *core.RegionInfo, 10000),
+		Ch2:          make(chan *core.RegionInfo, 10000),
+		Ch3:          make(chan *core.RegionInfo, 10000),
+		Ch4:          make(chan *core.RegionInfo, 10000),
 	}
 }
 
@@ -228,7 +236,27 @@ func (c *RaftCluster) Start(s Server) error {
 	go c.syncRegions()
 	c.running = true
 
+	go c.serverChannel(c.Ch1, s)
+	go c.serverChannel(c.Ch2, s)
+	go c.serverChannel(c.Ch3, s)
+	go c.serverChannel(c.Ch4, s)
 	return nil
+}
+
+func (c *RaftCluster) serverChannel(ch chan *core.RegionInfo, s Server) {
+	ticker := time.NewTicker(time.Second)
+	for {
+		select {
+		case region := <-ch:
+			err := c.HandleRegionHeartbeat(region)
+			if err != nil {
+				//msg := err.Error()
+				//s.hbStreams.sendErr(pdpb.ErrorType_UNKNOWN, msg, request.GetLeader(), storeAddress, storeLabel)
+			}
+		case <-ticker.C:
+			continue
+		}
+	}
 }
 
 // LoadClusterInfo loads cluster related info.
@@ -502,62 +530,71 @@ func (c *RaftCluster) processRegionHeartbeat(region *core.RegionInfo) error {
 		time.Sleep(500 * time.Millisecond)
 	})
 
-	c.Lock()
+	//c.Lock()
 	if saveCache {
 		// To prevent a concurrent heartbeat of another region from overriding the up-to-date region info by a stale one,
 		// check its validation again here.
 		//
 		// However it can't solve the race condition of concurrent heartbeats from the same region.
+		c.RLock()
 		if _, err := c.core.PreCheckPutRegion(region); err != nil {
-			c.Unlock()
+			c.RUnlock()
 			return err
 		}
-		overlaps := c.core.PutRegion(region)
-		if c.storage != nil {
-			for _, item := range overlaps {
-				if err := c.storage.DeleteRegion(item.GetMeta()); err != nil {
-					log.Error("failed to delete region from storage",
-						zap.Uint64("region-id", item.GetID()),
-						zap.Stringer("region-meta", core.RegionToHexMeta(item.GetMeta())),
-						zap.Error(err))
+		c.RUnlock()
+		//c.core.PutRegion(region)
+
+		//overlaps := c.core.PutRegion(region)
+		/*
+			if c.storage != nil {
+				for _, item := range overlaps {
+					if err := c.storage.DeleteRegion(item.GetMeta()); err != nil {
+						log.Error("failed to delete region from storage",
+							zap.Uint64("region-id", item.GetID()),
+							zap.Stringer("region-meta", core.RegionToHexMeta(item.GetMeta())),
+							zap.Error(err))
+					}
 				}
 			}
+
+				for _, item := range overlaps {
+					if c.regionStats != nil {
+						c.regionStats.ClearDefunctRegion(item.GetID())
+					}
+					c.labelLevelStats.ClearDefunctRegion(item.GetID(), c.GetLocationLabels())
+				}
+
+				// Update related stores.
+				if origin != nil {
+					for _, p := range origin.GetPeers() {
+						c.updateStoreStatusLocked(p.GetStoreId())
+					}
+				}
+				for _, p := range region.GetPeers() {
+					c.updateStoreStatusLocked(p.GetStoreId())
+				}
+				regionEventCounter.WithLabelValues("update_cache").Inc()
+
+		*/
+	}
+
+	/*
+		if isNew {
+			c.prepareChecker.collect(region)
 		}
-		for _, item := range overlaps {
-			if c.regionStats != nil {
-				c.regionStats.ClearDefunctRegion(item.GetID())
-			}
-			c.labelLevelStats.ClearDefunctRegion(item.GetID(), c.GetLocationLabels())
+
+		if c.regionStats != nil {
+			c.regionStats.Observe(region, c.takeRegionStoresLocked(region))
 		}
 
-		// Update related stores.
-		if origin != nil {
-			for _, p := range origin.GetPeers() {
-				c.updateStoreStatusLocked(p.GetStoreId())
-			}
+		for _, writeItem := range writeItems {
+			c.hotSpotCache.Update(writeItem)
 		}
-		for _, p := range region.GetPeers() {
-			c.updateStoreStatusLocked(p.GetStoreId())
+		for _, readItem := range readItems {
+			c.hotSpotCache.Update(readItem)
 		}
-		regionEventCounter.WithLabelValues("update_cache").Inc()
-	}
-
-	if isNew {
-		c.prepareChecker.collect(region)
-	}
-
-	if c.regionStats != nil {
-		c.regionStats.Observe(region, c.takeRegionStoresLocked(region))
-	}
-
-	for _, writeItem := range writeItems {
-		c.hotSpotCache.Update(writeItem)
-	}
-	for _, readItem := range readItems {
-		c.hotSpotCache.Update(readItem)
-	}
-	c.Unlock()
-
+		c.Unlock()
+	*/
 	// If there are concurrent heartbeats from the same region, the last write will win even if
 	// writes to storage in the critical area. So don't use mutex to protect it.
 	if saveKV && c.storage != nil {
