@@ -398,20 +398,24 @@ func (s *Server) RegionHeartbeat(stream pdpb.PD_RegionHeartbeatServer) error {
 			s.hbStreams.sendErr(pdpb.ErrorType_UNKNOWN, msg, request.GetLeader(), storeAddress, storeLabel)
 			continue
 		}
-		switch region.GetID() % 4 {
-		case 0:
-			rc.Ch1 <- region
-			break
-		case 1:
-			rc.Ch2 <- region
-			break
-		case 2:
-			rc.Ch3 <- region
-			break
-		case 3:
-			rc.Ch4 <- region
-			break
-		}
+		rc.Ch1 <- region
+		/*
+			switch region.GetID() % 4 {
+			case 0:
+				rc.Ch1 <- region
+				break
+			case 1:
+				rc.Ch2 <- region
+				break
+			case 2:
+				rc.Ch3 <- region
+				break
+			case 3:
+				rc.Ch4 <- region
+				break
+			}
+
+		*/
 
 		regionHeartbeatCounter.WithLabelValues(storeAddress, storeLabel, "report", "ok").Inc()
 	}

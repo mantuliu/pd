@@ -123,7 +123,12 @@ func main() {
 	if err := svr.Run(); err != nil {
 		log.Fatal("run server failed", zap.Error(err))
 	}
+	/*
+		go func() {
+			http.ListenAndServe("0.0.0.0:6060", nil)
+		}()
 
+	*/
 	<-ctx.Done()
 	log.Info("Got signal to exit", zap.String("signal", sig.String()))
 

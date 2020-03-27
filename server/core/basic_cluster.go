@@ -287,12 +287,14 @@ func (bc *BasicCluster) TakeStore(storeID uint64) *StoreInfo {
 // PreCheckPutRegion checks if the region is valid to put.
 func (bc *BasicCluster) PreCheckPutRegion(region *RegionInfo) (*RegionInfo, error) {
 	bc.RLock()
+
 	for _, item := range bc.Regions.GetOverlaps(region) {
 		if region.GetRegionEpoch().GetVersion() < item.GetRegionEpoch().GetVersion() {
 			bc.RUnlock()
 			return nil, ErrRegionIsStale(region.GetMeta(), item.GetMeta())
 		}
 	}
+
 	origin := bc.Regions.GetRegion(region.GetID())
 	bc.RUnlock()
 	if origin == nil {
