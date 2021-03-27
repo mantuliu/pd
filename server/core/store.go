@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	// Interval to save store meta (including heartbeat ts) to etcd.
+	// Interval to save store meta (including heartbeat ts) to e tcd.
 	storePersistInterval   = 5 * time.Minute
 	mb                     = 1 << 20 // megabyte
 	gb                     = 1 << 30 // 1GB size
